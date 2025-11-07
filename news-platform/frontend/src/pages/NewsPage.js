@@ -266,7 +266,7 @@ const NewsPage = () => {
                 )}
 
                 {/* Content */}
-                <div className="text-sm text-gray-700 mb-4 flex-1">
+                {/* <div className="text-sm text-gray-700 mb-4 flex-1">
                   <p className={expandedArticles.has(index) ? '' : 'line-clamp-3'}>
                     {expandedArticles.has(index) 
                       ? (article.summary?.summary || article.content || article.description)
@@ -282,7 +282,7 @@ const NewsPage = () => {
                       {expandedArticles.has(index) ? 'Show less' : 'Show more'}
                     </button>
                   )}
-                </div>
+                </div> */}
 
                 {/* Bias Analysis - Compact */}
                 <div className="bg-gray-50 rounded-lg p-3 mb-4">
