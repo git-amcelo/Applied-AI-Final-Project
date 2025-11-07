@@ -129,7 +129,7 @@ const NewsPage = () => {
       </div>
 
       {/* Bias Filter */}
-      <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 mb-6">
+      {/* <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 mb-6">
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
           <div className="flex items-center space-x-4">
             <span className="text-sm font-medium text-gray-700">Filter by Bias:</span>
@@ -183,7 +183,7 @@ const NewsPage = () => {
             Showing {currentArticles.length} of {filteredArticles.length} articles
           </div>
         </div>
-      </div>
+      </div> */}
 
       {/* Articles Grid */}
       {loading ? (
