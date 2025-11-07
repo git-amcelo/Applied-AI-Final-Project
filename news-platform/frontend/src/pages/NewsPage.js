@@ -310,7 +310,7 @@ const NewsPage = () => {
                 </div>
 
                 {/* Read More Link */}
-                {article.url && (
+                {/* {article.url && (
                   <div className="mt-auto">
                     <a
                       href={article.url}
@@ -322,7 +322,7 @@ const NewsPage = () => {
                       <ExternalLink className="h-3 w-3 ml-1 group-hover:translate-x-0.5 transition-transform" />
                     </a>
                   </div>
-                )}
+                )} */}
               </div>
             </motion.div>
           ))}
