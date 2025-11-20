@@ -283,13 +283,13 @@ class CtnAiService {
         Source: "${source}"
         Content: "${content.substring(0, 1000)}..."
 
-        CRITICAL ANALYSIS GUIDELINES:
-        1. Source Context: Research the source's known editorial stance and reputation
-        2. Language Analysis: Look for emotionally charged words, loaded terms, selective adjectives
-        3. Story Framing: How is the narrative structured? What angle is emphasized?
-        4. Source Selection: Which experts/officials are quoted? Are opposing views included?
-        5. Fact Selection: What information is highlighted vs. downplayed or omitted?
-        6. Implicit Assumptions: What underlying worldview does the article assume?
+        CRITICAL ANALYSIS GUIDELINES
+        Source Context: Assess the publication's editorial standards, historical reputation, ownership structure, and any documented political or ideological leanings.fiveable+1.
+        Language Analysis: Examine the use of emotionally charged words, loaded language, and selective descriptors, distinguishing between fact, opinion, and rhetorical strategies.criticalthinking+2.
+        Story Framing: Analyze how the story is structured, which perspectives are foregrounded or marginalized, and the narrative techniques that shape interpretation.criticalthinking+1.
+        Source Selection: Identify the range and expertise of sources cited, evaluate the credibility of quoted individuals, and check for the inclusion of diverse or opposing viewpoints.libguides.com+2.
+        Fact Selection: Determine which facts are emphasized, backgrounded, or omitted; evaluate the evidence provided and consider how selective fact presentation can influence perception.libguides.com+2.
+        Implicit Assumptions: Identify underlying worldviews or presuppositions in the reporting, as well as unstated premises or societal biases reflected in the writing
 
         IMPORTANT: Do NOT default to neutral unless the content truly shows balanced reporting. Most news sources have some degree of bias - detect and measure it accurately.
 
@@ -309,10 +309,10 @@ class CtnAiService {
       `;
 
       const response = await this.anthropic.messages.create({
-        model: "claude-3-haiku-20240307", // Using Haiku since it's cheaper and fast enough
+        model: "claude-3-haiku-20240307",
         max_tokens: 500,
         temperature: 0.1,
-        system: "You are a political bias analyst specializing in objective media assessment. Provide accurate bias evaluations using established journalistic standards and media analysis frameworks.",
+        system: "You are a media bias analyst trained to evaluate political and ideological leanings in news content. Provide balanced, evidence-based assessments using recognized frameworks and journalistic standards for objectivity and accuracy.",
         messages: [
           {
             role: "user",
