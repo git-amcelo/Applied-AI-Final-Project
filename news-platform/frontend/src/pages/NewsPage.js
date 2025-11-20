@@ -129,7 +129,7 @@ const NewsPage = () => {
       </div>
 
       {/* Bias Filter */}
-      {/* <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 mb-6">
+      <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 mb-6">
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
           <div className="flex items-center space-x-4">
             <span className="text-sm font-medium text-gray-700">Filter by Bias:</span>
@@ -183,7 +183,7 @@ const NewsPage = () => {
             Showing {currentArticles.length} of {filteredArticles.length} articles
           </div>
         </div>
-      </div> */}
+      </div>
 
       {/* Articles Grid */}
       {loading ? (
@@ -266,7 +266,7 @@ const NewsPage = () => {
                 )}
 
                 {/* Content */}
-                {/* <div className="text-sm text-gray-700 mb-4 flex-1">
+                { <div className="text-sm text-gray-700 mb-4 flex-1">
                   <p className={expandedArticles.has(index) ? '' : 'line-clamp-3'}>
                     {expandedArticles.has(index) 
                       ? (article.summary?.summary || article.content || article.description)
@@ -282,7 +282,7 @@ const NewsPage = () => {
                       {expandedArticles.has(index) ? 'Show less' : 'Show more'}
                     </button>
                   )}
-                </div> */}
+                </div> }
 
                 {/* Bias Analysis - Compact */}
                 <div className="bg-gray-50 rounded-lg p-3 mb-4">
@@ -310,7 +310,7 @@ const NewsPage = () => {
                 </div>
 
                 {/* Read More Link */}
-                {/* {article.url && (
+                {article.url && (
                   <div className="mt-auto">
                     <a
                       href={article.url}
@@ -322,7 +322,7 @@ const NewsPage = () => {
                       <ExternalLink className="h-3 w-3 ml-1 group-hover:translate-x-0.5 transition-transform" />
                     </a>
                   </div>
-                )} */}
+                )}
               </div>
             </motion.div>
           ))}

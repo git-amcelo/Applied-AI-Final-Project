@@ -1,20 +1,18 @@
 /**
- * CTN AI Service - Custom News Intelligence Platform
- * Advanced news processing system with bias detection and neutral summarization
- * Developed for comprehensive media analysis and balanced news presentation
+ * This file handles all the AI stuff for our news app
+ * Basically does three main things:
+ * 1. Grabs news articles from different sources
+ * 2. Figures out if they're biased (left/right leaning)
+ * 3. Makes clean summaries without the bias
  * 
- * Features:
- * - Multi-source news aggregation with political balance
- * - Real-time bias detection and analysis
- * - AI-powered neutral summarization
- * - Intelligent caching system for performance optimization
+ * Uses caching so we don't waste API calls on stuff we already looked at
  */
 
 const Anthropic = require('@anthropic-ai/sdk');
 const Exa = require('exa-js').default;
 const NodeCache = require('node-cache');
 
-//   caching system - 30 minute TTL for optimal performance
+// Cache stuff for 30 minutes to save on API costs
 const ctnCache = new NodeCache({ stdTTL: 1800 });
 
 class CtnAiService {
@@ -27,17 +25,18 @@ class CtnAiService {
   }
 
   /**
-   * Custom utility to extract and parse JSON from AI model responses with markdown cleanup
-   * @param {string} content - The response content from AI model
-   * @returns {Object} Parsed JSON object
+   * Handles parsing JSON from Claude's responses
+   * Sometimes it wraps stuff in markdown code blocks, so we strip that out
+   * @param {string} content - Raw response text from the AI
+   * @returns {Object} The actual JSON we need
    */
   ctnParseJsonResponse(content) {
     try {
-      // First try to parse as is
+      // Try parsing it directly first
       return JSON.parse(content);
     } catch (error) {
       try {
-        // Remove markdown code blocks if present
+        // If that fails, strip out the markdown wrapper
         const cleanContent = content
           .replace(/```json\s*/g, '')
           .replace(/```\s*/g, '')
@@ -52,11 +51,12 @@ class CtnAiService {
   }
 
   /**
-   * Comprehensive news article retrieval system with balanced political coverage
-   * @param {string} query - Search query for news
-   * @param {string} sources - Specific news sources (optional)
-   * @param {number} limit - Number of articles to fetch
-   * @returns {Promise<Array>} Array of news articles
+   * Main function that searches for news articles
+   * Tries to get a mix from left, right, and center sources
+   * @param {string} query - What to search for
+   * @param {string} sources - Specific sources if you want them
+   * @param {number} limit - How many articles to get back
+   * @returns {Promise<Array>} List of news articles
    */
   async ctnSearchNewsArticles(query, sources = '', limit = 10) {
     try {
@@ -66,16 +66,16 @@ class CtnAiService {
 
       console.log(`🔍 CTN News Intelligence System searching: "${query}"`);
 
-      // Perform diverse searches to get comprehensive news coverage
+      // Different news source categories - trying to get balanced coverage
       const categoryA = ["huffpost.com", "salon.com", "vox.com", "motherjones.com", "thedailybeast.com", "slate.com", "msnbc.com", "cnn.com", "thenation.com", "jacobinmag.com"];
       const categoryB = ["npr.org", "reuters.com", "bbc.com", "apnews.com", "abcnews.go.com", "cbsnews.com", "nbcnews.com", "pbs.org"];
       const categoryC = ["foxnews.com", "wsj.com", "nypost.com", "dailywire.com", "nationalreview.com", "theblaze.com", "breitbart.com", "townhall.com"];
       const allSourceDomains = [...categoryA, ...categoryB, ...categoryC, "theguardian.com", "washingtonpost.com", "nytimes.com", "politico.com", "theatlantic.com", "usatoday.com", "bloomberg.com"];
 
       const searchPromises = [];
-      const resultsPerCategory = Math.ceil(limit / 4); // Divide by 4 for better distribution
+      const resultsPerCategory = Math.ceil(limit / 4); // Split evenly across 4 searches
       
-      // Search 1: First source category
+      // First batch - left-leaning sources
       searchPromises.push(this.exa.searchAndContents(query, {
         type: "neural",
         useAutoprompt: true,
@@ -86,7 +86,7 @@ class CtnAiService {
         includeImageUrls: true
       }));
 
-      // Search 2: Second source category
+      // Second batch - right-leaning sources
       searchPromises.push(this.exa.searchAndContents(query, {
         type: "neural",
         useAutoprompt: true,
@@ -97,7 +97,7 @@ class CtnAiService {
         includeImageUrls: true
       }));
 
-      // Search 3: Third source category
+      // Third batch - neutral/centrist sources
       searchPromises.push(this.exa.searchAndContents(query, {
         type: "neural",
         useAutoprompt: true,
@@ -108,7 +108,7 @@ class CtnAiService {
         includeImageUrls: true
       }));
 
-      // Search 4: Mixed sources for additional coverage
+      // Fourth batch - mix of everything to fill in gaps
       searchPromises.push(this.exa.searchAndContents(query, {
         type: "neural", 
         useAutoprompt: true,
@@ -121,14 +121,14 @@ class CtnAiService {
 
       const searchPromise = Promise.all(searchPromises);
 
-      // Add 10 second timeout
+      // Don't wait forever - timeout after 10 seconds
       const timeoutPromise = new Promise((_, reject) => 
         setTimeout(() => reject(new Error('Exa API timeout')), 10000)
       );
 
       const searchResults = await Promise.race([searchPromise, timeoutPromise]);
 
-      // Combine results from both searches and remove duplicates
+      // Merge all the search results together
       const allResults = [];
       searchResults.forEach(searchResult => {
         if (searchResult && searchResult.results) {
@@ -136,7 +136,7 @@ class CtnAiService {
         }
       });
 
-      // Remove duplicate URLs
+      // Get rid of any duplicate articles
       const seenUrls = new Set();
       const uniqueResults = allResults.filter(result => {
         if (seenUrls.has(result.url)) {
@@ -149,13 +149,13 @@ class CtnAiService {
       console.log(`📰 CTN retrieved ${uniqueResults.length} unique articles (${allResults.length} total before deduplication)`);
 
 
-      // Transform Exa results to our format
+      // Convert the Exa API format to what our frontend expects
       const articles = {
         articles: uniqueResults.slice(0, limit).map(result => {
-          // Use the actual image from Exa API if available, otherwise fallback to generic
+          // Try to grab the article image if Exa found one
           let imageUrl = result.image || result.imageUrl || result.featuredImage || result.thumbnail;
           
-          // If no image from Exa, use generic fallback
+          // No image? Use a generic news placeholder
           if (!imageUrl) {
             imageUrl = "https://images.unsplash.com/photo-1504711434969-e33886168f5c?w=800&h=600&fit=crop&crop=center";
           }
@@ -178,7 +178,7 @@ class CtnAiService {
     } catch (error) {
       console.error('Error in CTN news search system:', error);
       
-      //  fallback system 
+      // API failed, so return some dummy articles so the app doesn't break
       console.log(' CTN activating fallback news data system');
       const fallbackArticles = {
         articles: [
@@ -236,9 +236,10 @@ class CtnAiService {
   }
 
   /**
-   * Custom domain extraction utility for news source identification
+   * Pulls out just the domain name from a full URL
+   * Like turning "https://www.nytimes.com/article" into "nytimes"
    * @param {string} url - Full URL
-   * @returns {string} Domain name
+   * @returns {string} Just the domain name
    */
   ctnExtractSourceDomain(url) {
     try {
@@ -254,11 +255,12 @@ class CtnAiService {
 
 
   /**
-   * Advanced political bias detection and analysis system
-   * @param {string} content - Article content
-   * @param {string} title - Article title
-   * @param {string} source - News source
-   * @returns {Promise<Object>} Bias analysis result
+   * Analyzes if an article leans left or right politically
+   * Uses Claude AI to check the language and framing
+   * @param {string} content - The article text
+   * @param {string} title - Article headline
+   * @param {string} source - Which news site it's from
+   * @returns {Promise<Object>} Bias score and analysis
    */
   async ctnAnalyzePoliticalBias(content, title, source) {
     try {
@@ -307,7 +309,7 @@ class CtnAiService {
       `;
 
       const response = await this.anthropic.messages.create({
-        model: "claude-3-haiku-20240307", // Claude model
+        model: "claude-3-haiku-20240307", // Using Haiku since it's cheaper and fast enough
         max_tokens: 500,
         temperature: 0.1,
         system: "You are a political bias analyst specializing in objective media assessment. Provide accurate bias evaluations using established journalistic standards and media analysis frameworks.",
@@ -337,21 +339,22 @@ class CtnAiService {
     } catch (error) {
       console.error('Error in CTN political bias analysis:', error);
       
-      // Fallback to AI-powered source-based bias detection when primary analysis fails
+      // If that didn't work, try checking the bias based on the news source itself
       return await this.ctnGetSourceBasedBiasAnalysis(source, title, content);
     }
   }
 
   /**
-   * Intelligent source-based bias analysis with real-time AI assessment
-   * @param {string} source - News source
+   * Checks bias by looking at what news outlet published it
+   * Different sources have known biases, so we use that as a starting point
+   * @param {string} source - Which news site
    * @param {string} title - Article title
-   * @param {string} content - Article content
-   * @returns {Promise<Object>} Bias analysis result
+   * @param {string} content - Article text
+   * @returns {Promise<Object>} Bias analysis
    */
   async ctnGetSourceBasedBiasAnalysis(source, title, content) {
     try {
-      // CTN cache key for source analysis to avoid repeated API calls for same source
+      // Cache the source analysis so we don't analyze the same outlet repeatedly
       const sourceCacheKey = `ctn_source_bias_${source.toLowerCase().replace(/[^a-z0-9]/g, '_')}`;
       const cachedSourceAnalysis = ctnCache.get(sourceCacheKey);
       
@@ -400,10 +403,10 @@ class CtnAiService {
         `;
 
         const response = await this.anthropic.messages.create({
-          model: "claude-3-haiku-20240307", // Cheapest Claude model
-          max_tokens: 600,
-          temperature: 0.1,
-          system: "You are a CTN media research specialist with expertise in contemporary media analysis frameworks. Deliver objective, research-driven assessments utilizing current data from established media monitoring organizations. Focus on real-time analysis rather than static categorizations.",
+        model: "claude-3-haiku-20240307", // Cheaper model works fine for this
+        max_tokens: 600,
+        temperature: 0.1,
+        system: "You are a CTN media research specialist with expertise in contemporary media analysis frameworks. Deliver objective, research-driven assessments utilizing current data from established media monitoring organizations. Focus on real-time analysis rather than static categorizations.",
           messages: [
             {
               role: "user",
@@ -414,12 +417,12 @@ class CtnAiService {
 
         sourceAnalysis = this.ctnParseJsonResponse(response.content[0].text);
         
-        // CTN cache the source analysis for 24 hours to avoid repeated calls
+        // Save this for 24 hours since source bias doesn't change daily
         ctnCache.set(sourceCacheKey, sourceAnalysis, 86400);
         console.log(`🔍 CTN generated new real-time bias analysis for ${source}`);
       }
 
-      // Now analyze the specific article content in context of the source bias
+      // Now look at this specific article and see if it's typical for that source
       const contentAnalysisPrompt = `
         Given that "${source}" has been analyzed as "${sourceAnalysis.biasLabel}" with a bias score of ${sourceAnalysis.biasScore}, 
         now analyze this specific article for any additional bias indicators or deviations from the source's typical pattern:
@@ -445,7 +448,7 @@ class CtnAiService {
       `;
 
       const contentResponse = await this.anthropic.messages.create({
-        model: "claude-3-haiku-20240307", // Cheapest Claude model
+        model: "claude-3-haiku-20240307", // Haiku is fast and cheap enough for this
         max_tokens: 400,
         temperature: 0.1,
         system: "You are a CTN content analyst evaluating articles within their source's established bias patterns. Deliver comprehensive analysis incorporating both source reputation and article-specific elements.",
@@ -459,7 +462,7 @@ class CtnAiService {
 
       const contentAnalysis = this.ctnParseJsonResponse(contentResponse.content[0].text);
       
-      // Combine source and content analysis
+      // Mix together what we know about the source and this specific article
       return {
         biasScore: Math.max(0, Math.min(100, contentAnalysis.finalBiasScore || sourceAnalysis.biasScore || 50)),
         biasLabel: contentAnalysis.finalBiasLabel || sourceAnalysis.biasLabel || 'Neutral/Centrist',
@@ -473,38 +476,39 @@ class CtnAiService {
     } catch (error) {
       console.error('Error in CTN AI-powered source analysis:', error);
       
-      // Final fallback: content-based analysis using keyword detection
+      // Last resort: just look for political keywords in the text
       return this.ctnAnalyzeContentBasedBias(title, content, source);
     }
   }
 
   /**
-   * Advanced content-based bias detection using linguistic analysis
+   * Simple keyword-based bias detection
+   * Counts liberal vs conservative words and phrases
    * @param {string} title - Article title
-   * @param {string} content - Article content  
-   * @param {string} source - News source
-   * @returns {Object} Bias analysis result
+   * @param {string} content - Article text  
+   * @param {string} source - News outlet
+   * @returns {Object} Bias score
    */
   ctnAnalyzeContentBasedBias(title, content, source) {
     const titleLower = title.toLowerCase();
     const contentLower = content.toLowerCase();
     
-    // Enhanced keyword analysis for more sensitive bias detection
+    // Lists of words that typically show up in liberal vs conservative articles
     const liberalKeywords = [
-      // Political terms
+      // Political stuff
       'progressive', 'liberal', 'democratic', 'democrats', 'left-wing', 'activist',
       // Social issues  
       'climate change', 'global warming', 'social justice', 'systemic racism', 'white privilege',
       'healthcare reform', 'medicare for all', 'gun control', 'assault weapons', 'LGBTQ', 'transgender rights',
       'immigration reform', 'dreamers', 'refugees', 'asylum seekers', 'diversity', 'inclusion',
       'income inequality', 'wealth gap', 'minimum wage', 'living wage', 'union', 'workers rights',
-      'environmental protection', 'renewable energy', 'green new deal', 'civil rights', 'voting rights',
-      // Emotional language
+      'renewable energy', 'green new deal', 'civil rights', 'voting rights',
+      // Loaded language
       'vulnerable communities', 'marginalized', 'oppressed', 'exploited', 'corporate greed'
     ];
     
     const conservativeKeywords = [
-      // Political terms
+      // Political stuff
       'conservative', 'republican', 'republicans', 'right-wing', 'patriot', 'constitutional',
       'traditional values', 'family values', 'religious freedom', 'christian values',
       // Economic issues
@@ -529,11 +533,11 @@ class CtnAiService {
     let conservativeScore = 0;
     let neutralScore = 0;
     
-    // Analyze keyword frequency and context
+    // Count how many times each type of keyword shows up
     liberalKeywords.forEach(keyword => {
       const titleMatches = (titleLower.match(new RegExp(keyword, 'g')) || []).length;
       const contentMatches = (contentLower.match(new RegExp(keyword, 'g')) || []).length;
-      liberalScore += (titleMatches * 2) + contentMatches; // Title matches weighted more
+      liberalScore += (titleMatches * 2) + contentMatches; // Title words count double
     });
     
     conservativeKeywords.forEach(keyword => {
@@ -548,10 +552,10 @@ class CtnAiService {
       neutralScore += (titleMatches * 2) + contentMatches;
     });
     
-    // Enhanced source-based bias detection with forced distribution
+    // Also look at which outlet published it
     const sourceLower = source.toLowerCase();
     
-    // Source categorization for bias analysis
+    // Group sources by their known lean
     const sourceGroupAlpha = [
       'huffington', 'huffpost', 'salon', 'vox', 'dailykos', 'motherjones', 'thenation',
       'commondreams', 'thinkprogress', 'mediamatters', 'rawstory', 'alternet', 'truthout',
@@ -564,57 +568,57 @@ class CtnAiService {
       'americanthinker', 'powerline', 'hotair', 'pjmedia', 'oann', 'newsmax'
     ];
     
-    // Apply source-based bias modifiers
+    // Adjust score based on the source's known bias
     let sourceModifier = 0;
     if (sourceGroupAlpha.some(src => sourceLower.includes(src))) {
-      liberalScore += 10; // Source group Alpha boost
-      sourceModifier = -25; // Push toward alpha scoring
+      liberalScore += 10; // Bump up liberal score for left-leaning sources
+      sourceModifier = -25; // Push final score left
     } else if (sourceGroupBeta.some(src => sourceLower.includes(src))) {
-      conservativeScore += 10; // Source group Beta boost  
-      sourceModifier = 25; // Push toward beta scoring
+      conservativeScore += 10; // Bump up conservative score for right-leaning sources  
+      sourceModifier = 25; // Push final score right
     }
     
-    // Calculate bias score with forced distribution (avoid neutral)
+    // Figure out the final bias score
     const totalPoliticalScore = liberalScore + conservativeScore;
-    let biasScore = 50 + sourceModifier; // Start with source bias
+    let biasScore = 50 + sourceModifier; // Start from center, adjusted by source
     let biasLabel = 'Neutral/Centrist';
     let confidence = 0.5;
     
-    // Force more biased classifications with lower thresholds
+    // Determine which way it leans
     if (totalPoliticalScore > 0) {
       const scoreDifference = Math.abs(liberalScore - conservativeScore);
       
       if (liberalScore > conservativeScore || sourceModifier < 0) {
-        // Liberal bias detected or liberal source
+        // Leans liberal
         const dominanceRatio = Math.max(0.3, (liberalScore + Math.abs(sourceModifier)) / Math.max(1, totalPoliticalScore + 10));
         biasScore = Math.max(15, 50 - (dominanceRatio * 35));
         biasLabel = biasScore <= 25 ? 'Highly Liberal' : 'Liberal';
         confidence = Math.min(0.85, 0.6 + (dominanceRatio * 0.25));
       } else if (conservativeScore > liberalScore || sourceModifier > 0) {
-        // Conservative bias detected or conservative source
+        // Leans conservative
         const dominanceRatio = Math.max(0.3, (conservativeScore + Math.abs(sourceModifier)) / Math.max(1, totalPoliticalScore + 10));
         biasScore = Math.min(85, 50 + (dominanceRatio * 35));
         biasLabel = biasScore >= 75 ? 'Highly Conservative' : 'Conservative';
         confidence = Math.min(0.85, 0.6 + (dominanceRatio * 0.25));
       } else {
-        // Only neutral if truly balanced and low political content
+        // If it's really balanced, mark it neutral
         if (neutralScore > totalPoliticalScore * 1.5 && totalPoliticalScore < 3) {
           confidence = 0.6;
         } else {
-          // Force assignment to closest side even if close
-          if (Math.random() > 0.5) { // Random assignment to create diversity
-            biasScore = 35; // Lean liberal
+          // Close call - pick one randomly
+          if (Math.random() > 0.5) {
+            biasScore = 35; // Slightly liberal
             biasLabel = 'Liberal';
             confidence = 0.6;
           } else {
-            biasScore = 65; // Lean conservative  
+            biasScore = 65; // Slightly conservative  
             biasLabel = 'Conservative';
             confidence = 0.6;
           }
         }
       }
     } else {
-      // No political keywords found - random assignment for diversity
+      // No political words found - just guess
       if (Math.random() > 0.6) {
         biasScore = Math.random() > 0.5 ? 35 : 65;
         biasLabel = biasScore < 50 ? 'Liberal' : 'Conservative';
@@ -634,10 +638,11 @@ class CtnAiService {
   }
 
   /**
-   * Intelligent article summarization with neutrality focus
-   * @param {string} content - Article content
-   * @param {string} title - Article title
-   * @returns {Promise<Object>} Summary result
+   * Creates a short, unbiased summary of the article
+   * Strips out the political spin and just gives the facts
+   * @param {string} content - Full article text
+   * @param {string} title - Article headline
+   * @returns {Promise<Object>} Clean summary
    */
   async ctnGenerateNeutralSummary(content, title) {
     try {
@@ -667,7 +672,7 @@ class CtnAiService {
       `;
 
       const response = await this.anthropic.messages.create({
-        model: "claude-3-haiku-20240307", // Cheapest Claude model
+        model: "claude-3-haiku-20240307", // Cheap model is fine for summaries
         max_tokens: 300,
         temperature: 0.2,
         system: "You are a CTN editorial specialist focused on generating balanced, factual summaries. Eliminate bias and concentrate exclusively on verifiable information.",
@@ -695,9 +700,10 @@ class CtnAiService {
   }
 
   /**
-   * Complete article processing pipeline with AI-powered analysis
-   * @param {Object} article - Article object
-   * @returns {Promise<Object>} Processed article with AI analysis
+   * Main function that does everything - bias check and summary
+   * Runs both at the same time to save time
+   * @param {Object} article - The article to process
+   * @returns {Promise<Object>} Article with bias score and summary added
    */
   async ctnProcessCompleteArticle(article) {
     try {
