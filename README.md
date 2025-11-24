@@ -12,7 +12,7 @@ Everything you need is in the `news-platform` folder. Check out the README there
 
 Quick version:
 - Install Node.js
-- Get an OpenAI API key
+- Get an Exa API key and Anthropic Api Key
 - Run `npm install` and `npm run dev`
 
 That's pretty much it.
